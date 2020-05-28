@@ -1,3 +1,6 @@
+
+Created from iTextSharp_5_1_0
+
 Changes in iTextSharp source code:
 1.File DocumentFont.cs line 633 - changed accessor type of property IndirectReference from class DocumentFont from internal to public
 2.File DocumentFonts.cs insert lines 149-153 in function ProcessType0() to prevent InvalidCastException which happens on
