@@ -82,7 +82,12 @@ namespace iTextSharp.text.pdf.parser {
                 this.markedContentInfos.Add(m);
             }
         }
-        
+
+        /// <summary>
+        /// keeps original codes before decoding
+        /// </summary>
+        public PdfString CharCodes { get; set; }    //arkadi
+
         /**
          * @return the text to render
          */

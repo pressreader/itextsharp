@@ -63,6 +63,12 @@ namespace iTextSharp.text.pdf {
          *  This CMap transforms CID values into unicode equivalent
          */
         private CMap toUnicodeCmap;
+        
+        public CMap ToUnicodeCmap           //arkadi - expose toUnicodeCmap as a public property
+        {
+            get { return toUnicodeCmap; }
+        }
+
         /**
          *  Mapping between CID code (single byte only for now) and unicode equivalent
          *  as derived by the font's encoding.  Only needed if the ToUnicode CMap is not provided.

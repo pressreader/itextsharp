@@ -46,6 +46,21 @@ namespace iTextSharp.text.pdf.fonts.cmaps {
         private IDictionary<int, String> singleByteMappings = new Dictionary<int, String>();
         private IDictionary<int, String> doubleByteMappings = new Dictionary<int, String>();
 
+        public IList<CodespaceRange> CodeSpaceRanges            //arkadi
+        {
+            get { return codeSpaceRanges; }
+        }
+
+        public IDictionary<int, String> SingleByteMappings      //arkadi
+        {
+            get { return singleByteMappings; }
+        }
+
+        public IDictionary<int, String> DoubleByteMappings      //arkadi
+        {
+            get { return doubleByteMappings; }
+        }
+
         /**
          * Creates a new instance of CMap.
          */

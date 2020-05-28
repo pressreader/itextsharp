@@ -1,0 +1,21 @@
+Changes in iTextSharp source code:
+1.File DocumentFont.cs line 633 - changed accessor type of property IndirectReference from class DocumentFont from internal to public
+2.File DocumentFonts.cs insert lines 149-153 in function ProcessType0() to prevent InvalidCastException which happens on
+attempt to read ToUnicode stream 
+3.File DocumentFonts.cs insert lines 210, 211, 229, 230, modified 213
+4.File CMapParser.cs - inserted lines 136 - 159
+
+
+--------these changes are important for approach 1 only ------------------------
+3.File PdfContentStreamProcessor.cs method ProcessContent() lines 315-363 - added try - catch block into method ProcessContent from class PdfContentStreamProcessor
+  Added code which is trying to recover from exceptions thrown during inline image processing
+4.File PdfContentStreamProcessor.cs Added method FindContext() line 375  
+5.File PdfContentStreamProcessor.cs line 2 - added using System.Diagnostics; statement
+6.File InlineImageUtils.cs - method ParseInlineImage() - added second parameter PdfDictionary colorSpaceDict  changed call to ParseInlineImageSamples() line 132
+7.File InlineImageUtils.cs - method  GetComponentsPerPixel() added second parameter PdfDictionary colorSpaceDict line, completely changed logic here line 205
+8.File InlineImageUtils.cs - added method  GetComponentsPerPixelFromDeviceString() line 269
+9.File InlineImageUtils.cs - method ComputeBytesPerRow()added second parameter PdfDictionary colorSpaceDict changed call to GetComponentsPerPixel() line 295
+10.File InlineImageUtils.cs - method ParseUnfilteredSamples() added last parameter PdfDictionary colorSpaceDict changed call to ComputeBytesPerRow() line 319
+11.File InlineImageUtils.cs - method ParseInlineImageSamples() -  added last parameter PdfDictionary colorSpaceDict changed call to ParseUnfilteredSamples()line 356
+
+

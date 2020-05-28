@@ -134,6 +134,21 @@ namespace iTextSharp.text.pdf.parser {
             byte[] samples = ParseInlineImageSamples(inlineImageDictionary, colorSpaceDic, ps);
             return new PdfImageObject(inlineImageDictionary, samples);
         }
+
+        //arkadi added this overloaded function
+        /**
+         * Parses an inline image from the provided content parser.  The parser must be positioned immediately following the BI operator in the content stream.
+         * The parser will be left with current position immediately following the EI operator that terminates the inline image
+         * @param ps the content parser to use for reading the image. 
+         * @return the parsed image
+         * @throws IOException if anything goes wring with the parsing
+         * @throws InlineImageParseException if parsing of the inline image failed due to issues specific to inline image processing
+         */
+        public static PdfImageObject ParseInlineImage(PdfContentParser ps, PdfDictionary colorSpaceDic, PdfDictionary inlineImageDictionary)
+        {
+            byte[] samples = ParseInlineImageSamples(inlineImageDictionary, colorSpaceDic, ps);
+            return new PdfImageObject(inlineImageDictionary, samples);
+        }
         
         /**
          * Parses the next inline image dictionary from the parser.  The parser must be positioned immediately following the EI operator.
@@ -142,7 +157,7 @@ namespace iTextSharp.text.pdf.parser {
          * @return the dictionary for the inline image, with any abbreviations converted to regular image dictionary keys and values
          * @throws IOException if the parse fails
          */
-        private static PdfDictionary ParseInlineImageDictionary(PdfContentParser ps) {
+        /*private*/ internal static PdfDictionary ParseInlineImageDictionary(PdfContentParser ps) {  //arkadi made internal
             // by the time we get to here, we have already parsed the BI operator
             PdfDictionary dictionary = new PdfDictionary();
             
@@ -202,7 +217,8 @@ namespace iTextSharp.text.pdf.parser {
          * @param colorSpaceName the name of the color space. If null, a bi-tonal (black and white) color space is assumed.
          * @return the components per pixel for the specified color space
          */
-        private static int GetComponentsPerPixel(PdfName colorSpaceName, PdfDictionary colorSpaceDic){
+        private static int GetComponentsPerPixel(PdfName colorSpaceName, PdfDictionary colorSpaceDic)  //arkadi - added support for having refrences to resource dict in ColorSpace item
+        {  
             if (colorSpaceName == null)
                 return 1;
             if (colorSpaceName.Equals(PdfName.DEVICEGRAY))
@@ -211,18 +227,96 @@ namespace iTextSharp.text.pdf.parser {
                 return 3;
             if (colorSpaceName.Equals(PdfName.DEVICECMYK))
                 return 4;
-            
-            if (colorSpaceDic != null){
-                PdfArray colorSpace = colorSpaceDic.GetAsArray(colorSpaceName);
-                if (colorSpace != null){
-                    if (PdfName.INDEXED.Equals(colorSpace.GetAsName(0))){
+
+            var numComponents = 0;
+            //original code this if only
+            //if (colorSpaceDic != null){
+            //    PdfArray colorSpace = colorSpaceDic.GetAsArray(colorSpaceName);
+            //    if (colorSpace != null){
+            //        if (PdfName.INDEXED.Equals(colorSpace.GetAsName(0))){
+            //            return 1;
+            //        }
+            //    }
+            //}
+
+            //if we are here ColorSpace entry doesn't have valid device name, but can be a reference to ColorSpace Dictionary from resources 
+            //arkadi - next code is added
+            if (null != colorSpaceDic)
+            {
+                PdfArray colorSpace = colorSpaceDic.GetAsArray(colorSpaceName);                
+                if (colorSpace != null)
+                {
+                    if (PdfName.INDEXED.Equals(colorSpace.GetAsName(0)))
+                    {
                         return 1;
+                    }
+                    foreach (var entry in colorSpace.ArrayList)
+                    {
+                        PdfName name = entry as PdfName;
+                        if (entry.IsIndirect())
+                        {
+                            var obj = PdfReader.GetPdfObject(entry);
+                            if (obj.IsName())
+                            {
+                                name = obj as PdfName;
+                            }
+                            else //if(obj.IsArray())
+                            {
+                                var csAray = obj as PdfArray;
+                                if (csAray != null)
+                                {
+                                    foreach (var e in csAray.ArrayList)
+                                    {
+                                        name = e as PdfName;
+                                        if ((numComponents = GetComponentsPerPixelFromDeviceString(name)) > 0)
+                                            return numComponents;
+                                    }
+                                    continue;
+                                }
+
+                            }
+                        }
+
+                        if ((numComponents = GetComponentsPerPixelFromDeviceString(name)) > 0)
+                            return numComponents;
+                    }
+                }
+                else
+                {
+                    PdfName pdfnameColorSpace = colorSpaceDic.GetAsName(colorSpaceName);
+                    if (pdfnameColorSpace != null)
+                    {
+                        if ((numComponents = GetComponentsPerPixelFromDeviceString(pdfnameColorSpace)) > 0)
+                            return numComponents;
                     }
                 }
             }
 
+
             throw new ArgumentException("Unexpected color space " + colorSpaceName);
         }
+
+        //Arkadi - added this function 
+        /// <summary>
+        /// Return number of bytes representing pixel depending of string which is one of the: DeviceGray, DeviceRGB, DeviceCMYK   //Arkadi
+        /// </summary>
+        /// <param name="colorSpaceName"></param>
+        /// <returns> positive number of bytes depending on color space name (1, 3, 4), or 0 if colorSpaceName is not valid</returns>
+        private static int GetComponentsPerPixelFromDeviceString(PdfName colorSpaceName)
+        {
+            if (null != colorSpaceName)
+            {
+                if (colorSpaceName.Equals(PdfName.DEVICEGRAY))
+                    return 1;
+                if (colorSpaceName.Equals(PdfName.DEVICERGB))
+                    return 3;
+                if (colorSpaceName.Equals(PdfName.DEVICECMYK))
+                    return 4;
+            }
+
+            return 0;
+        }
+
         
         /**
          * Computes the number of unfiltered bytes that each row of the image will contain.
@@ -231,7 +325,7 @@ namespace iTextSharp.text.pdf.parser {
          * @param imageDictionary the dictionary of the inline image
          * @return the number of bytes per row of the image
          */
-        private static int ComputeBytesPerRow(PdfDictionary imageDictionary, PdfDictionary colorSpaceDic){
+        /*private*/ internal static int ComputeBytesPerRow(PdfDictionary imageDictionary, PdfDictionary colorSpaceDic){  //arkadi - changed to internal
             PdfNumber wObj = imageDictionary.GetAsNumber(PdfName.WIDTH);
             PdfNumber bpcObj = imageDictionary.GetAsNumber(PdfName.BITSPERCOMPONENT);
             int cpp = GetComponentsPerPixel(imageDictionary.GetAsName(PdfName.COLORSPACE), colorSpaceDic);

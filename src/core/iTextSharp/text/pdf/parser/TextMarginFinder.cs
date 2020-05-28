@@ -137,5 +137,25 @@ namespace iTextSharp.text.pdf.parser {
         public void RenderImage(ImageRenderInfo renderInfo) {
             // do nothing
         }
+
+        /// <summary>
+        /// arkadi added
+        /// </summary>
+        /// <param name="font"></param>
+        /// <param name="resourceName"></param>
+        public void SetFont(DocumentFont font, string resourceName)
+        {
+        }
+
+        /// <summary>
+        /// arkadi - added
+        /// </summary>
+        public int ContentOffset { get; set; }
+
+        /// <summary>
+        /// arkadi - added
+        /// </summary>
+        public bool IsException { get; set; }
+
     }
 }

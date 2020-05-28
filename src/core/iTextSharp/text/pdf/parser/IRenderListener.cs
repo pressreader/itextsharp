@@ -79,5 +79,24 @@ namespace iTextSharp.text.pdf.parser {
          * @since iText 5.0.1
          */
         void RenderImage(ImageRenderInfo renderInfo);
+
+        //arkadi - next properties have been added
+        /**
+         * arkadit - added to handle parsing of Tf operators 
+         * 
+         */
+        void SetFont(DocumentFont font, string resourceName);
+
+        /**
+         * arkadit - added to be able to store offset of operators
+         * 
+         */
+        int ContentOffset { get; set; }
+
+        /**
+         * arkadit - added to be notified if exception we may not handle properly happened during parsing
+         * 
+         */
+        bool IsException { get; set; }
     }
 }

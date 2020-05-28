@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Collections.Generic;
 using iTextSharp.text.pdf;
@@ -71,6 +72,9 @@ namespace iTextSharp.text.pdf.parser {
         private Matrix textLineMatrix;
         /** Listener that will be notified of render events */
         private IRenderListener renderListener;
+
+        public IRenderListener RenderListener { get { return renderListener; } }  //arkadit
+
         /** A map with all supported XObject handlers */
         private IDictionary<PdfName, IXObjectDoHandler> xobjectDoHandlers;
         /**
@@ -286,6 +290,8 @@ namespace iTextSharp.text.pdf.parser {
 
             TextRenderInfo renderInfo = new TextRenderInfo(unicode, Gs(), textMatrix, markedContentStack);
 
+            renderInfo.CharCodes = str;  //arkadi
+
             renderListener.RenderText(renderInfo);
 
             textMatrix = new Matrix(renderInfo.GetUnscaledWidth(), 0).Multiply(textMatrix);
@@ -332,27 +338,136 @@ namespace iTextSharp.text.pdf.parser {
          * @param contentBytes  the bytes of a content stream
          * @param resources     the resources that come with the content stream
          */
-        public void ProcessContent(byte[] contentBytes, PdfDictionary resources){
+        public void ProcessContent(byte[] contentBytes, PdfDictionary resources) {  //arkadi
 
             this.resources.Push(resources);
             PRTokeniser tokeniser = new PRTokeniser(contentBytes);
             PdfContentParser ps = new PdfContentParser(tokeniser);
+            byte[] buffEI = new byte[] { 0xa, (byte)'E', (byte)'I', 0xa };  //arkadi
+            byte[] buffEIShort = new byte[] { (byte)'E', (byte)'I' };  //arkadi
+            byte[] buffQ = new byte[] {0xa, (byte)'Q', 0xa };  //arkadi
+            int startInlineImage = -1, sizeOfImage = -1;    //arkadi
+            bool isFilter = false;   //arkadi  
             List<PdfObject> operands = new List<PdfObject>();
-            while (ps.Parse(operands).Count > 0){
+            
+            while (ps.Parse(operands).Count > 0)
+            {
+                bool isInlineImage = false;
                 PdfLiteral oper = (PdfLiteral)operands[operands.Count-1];
-                if ("BI".Equals(oper.ToString())){
-                    // we don't call invokeOperator for embedded images - this is one area of the PDF spec that is particularly nasty and inconsistent
-                    PdfDictionary colorSpaceDic = resources.GetAsDict(PdfName.COLORSPACE);
-                    ImageRenderInfo renderInfo = ImageRenderInfo.CreatedForEmbeddedImage(Gs().ctm, InlineImageUtils.ParseInlineImage(ps, colorSpaceDic));
-                    renderListener.RenderImage(renderInfo);
-                } else {
-                    InvokeOperator(oper, operands);
+
+                if (null != RenderListener)    //arkadi
+                {
+                    RenderListener.ContentOffset = tokeniser.FilePointer; //arkadi
+                }
+
+                try     //Arkadi added exception handling
+                {
+                    if ("BI".Equals(oper.ToString()))
+                    {
+                        isInlineImage = true;                        
+                        buffEI[3] = contentBytes[tokeniser.FilePointer];    //just in case we have 0xd, 0xa as eol  //arkadi added
+                        buffQ[2] = contentBytes[tokeniser.FilePointer];     //just in case we have 0xd, 0xa as eol  //arkadi added
+
+                        // we don't call invokeOperator for embedded images - this is one area of the PDF spec that is particularly nasty and inconsistent
+                        PdfDictionary colorSpaceDic = resources.GetAsDict(PdfName.COLORSPACE);
+                        PdfDictionary inlineImageDictionary = InlineImageUtils.ParseInlineImageDictionary(ps);
+                        startInlineImage = tokeniser.FilePointer;           //arkadi added
+                        isFilter = inlineImageDictionary.Contains(PdfName.FILTER);  //arkadi added
+                        if (!isFilter)   //arkadi added this if()
+                        {
+                            PdfNumber h = inlineImageDictionary.GetAsNumber(PdfName.HEIGHT);
+                            if(h != null)
+                                sizeOfImage = InlineImageUtils.ComputeBytesPerRow(inlineImageDictionary, colorSpaceDic) * h.IntValue;
+
+                        }
+
+                        ImageRenderInfo renderInfo = ImageRenderInfo.CreatedForEmbeddedImage(Gs().ctm, InlineImageUtils.ParseInlineImage(ps, colorSpaceDic, inlineImageDictionary));
+                        renderListener.RenderImage(renderInfo);
+                    }
+                    else 
+                    {
+                        InvokeOperator(oper, operands);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine(string.Format("Exception {0} during processing of operator {1}", ex.Message, oper.ToString()));
+                    if (ex is InlineImageUtils.InlineImageParseException || isInlineImage)  //arkadi 
+                    {
+                        int pos;
+                        int startPos = isFilter ? startInlineImage : startInlineImage + sizeOfImage;
+                        int sizeSearch = isFilter ? 0x8000 : 8; //can be extra white spaces before EI
+
+                        if (!FindContext(contentBytes, buffEI, startPos, sizeSearch, out pos))
+                        {
+                            bool res = FindContext(contentBytes, buffEIShort, startPos, sizeSearch, out pos);
+                            if (!res || !PRTokeniser.IsWhitespace(contentBytes[pos]))
+                            {
+                                if (!isFilter)
+                                    pos = startPos;   //image data should end here
+                                else
+                                {                                                                        
+                                    if (null != RenderListener)
+                                        RenderListener.IsException = true;
+                                    Debug.WriteLine("Can't find EI during processing of inline image");
+                                    break;                                                                       
+                                }
+
+
+                            }
+                        }
+                        tokeniser.Seek(pos);
+                        //}
+                        //break;
+
+                    }
+                    else
+                    {
+                        Debug.WriteLine(string.Format("-->BUG Exception {0} during processing of operator{1} ", ex.Message, oper.ToString()));
+                    }
                 }
             }
 
             this.resources.Pop();
         }
-        
+
+
+        /// <summary>
+        /// Attempt to find context inside byte[] array. //arkadi - used to find EI (end of inline image)
+        /// </summary>
+        /// <param name="contentBytes"></param>
+        /// <param name="context"></param>
+        /// <param name="start"></param>
+        /// <param name="sizeSearch"></param>
+        /// <param name="pos"></param>
+        /// <returns></returns>
+        private static bool FindContext(byte[] contentBytes, byte[] context, int start, int sizeSearch, out int pos)   //arkadi
+        {
+            int i, k;
+            var end = contentBytes.Length - context.Length;
+            if (end > 0 && start + sizeSearch - context.Length > end)
+                end = start + sizeSearch - context.Length;
+            pos = -1;
+            for (i = start; i < end; i++)
+            {
+                var isEqual = true;
+                for (k = 0; k < context.Length; k++)
+                {
+                    if (contentBytes[i + k] != context[k])
+                    {
+                        isEqual = false;
+                        break;
+                    }
+                }
+                if (isEqual)
+                {
+                    pos = i + context.Length;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /**
          * A resource dictionary that allows stack-like behavior to support resource dictionary inheritance
          */
@@ -554,6 +669,7 @@ namespace iTextSharp.text.pdf.parser {
                 processor.Gs().font = font;
                 processor.Gs().fontSize = size;
 
+                processor.RenderListener.SetFont(font, fontResourceName.ToString());        //arkadit
             }
         }
 

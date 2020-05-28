@@ -137,10 +137,34 @@ namespace iTextSharp.text.pdf.fonts.cmaps {
                                 array = (IList<byte[]>)nextToken;
                                 tokenBytes = array[0];
                             }
+                            else if (nextToken is byte[])                       //arkadi before it was simple: else tokenBytes = (byte[])nextToken;
+                            {                                                   //arkadi which caused exceptions and unicode map not being processed
+                                tokenBytes = (byte[])nextToken;                 //arkadi - added all check instead
+                            }
+                            else if (nextToken is IList<object>)
+                            {
+                                IList<object> arr = (IList<object>)nextToken;
+                                if (arr.Count > 0 && arr[0] is byte[])
+                                {
+                                    array = new List<byte[]>();
+                                    tokenBytes = (byte[])arr[0];
+                                    foreach (var item in arr)
+                                    {
+                                        if (item is byte[])
+                                            array.Add(item as byte[]);
+                                    }
+                                }
+                                else
+                                    break;
+                            }
                             else
                             {
-                                tokenBytes = (byte[])nextToken;
-                            }
+                                break;
+                            }     //arkadi - end of changes
+                            //else   //arkadi  - originally this else followed firts if
+                            //{
+                            //    tokenBytes = (byte[])nextToken;
+                            //}
 
                             String value = null;
 

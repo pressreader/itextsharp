@@ -147,6 +147,16 @@ namespace iTextSharp.text.pdf {
             IntHashtable widths = ReadWidths((PdfArray)PdfReader.GetPdfObjectRelease(cidft.Get(PdfName.W)));
             PdfDictionary fontDesc = (PdfDictionary)PdfReader.GetPdfObjectRelease(cidft.Get(PdfName.FONTDESCRIPTOR));
             FillFontDesc(fontDesc);
+            
+            if (toUniObject != null)  //Arkadi
+            {
+                if (toUniObject is PdfIndirectReference)
+                {
+                    //Arkadi - ToUnicode stream is indirect object
+                    return;
+                }
+            }
+
             if (toUniObject is PRStream){
                 FillMetrics(PdfReader.GetStreamBytes((PRStream)toUniObject), widths, dw);
             }
@@ -204,7 +214,12 @@ namespace iTextSharp.text.pdf {
                                 break;
                             String cid = DecodeString((PdfString)nx);
                             String uni = DecodeString((PdfString)ps.ReadPRObject());
-                            if (uni.Length == 1) {
+                            if (cid == null || uni == null)        //arkadi
+                                break;                              //arkadi
+
+
+                            if (cid.Length >= 1 && uni.Length == 1) //arkadi    - added: cid.Length>=1 &&   //if (uni.Length == 1) 
+                            {
                                 int cidc = (int)cid[0];
                                 int unic = (int)uni[uni.Length - 1];
                                 int w = dw;
@@ -221,6 +236,9 @@ namespace iTextSharp.text.pdf {
                                 break;
                             String cid1 = DecodeString((PdfString)nx);
                             String cid2 = DecodeString((PdfString)ps.ReadPRObject());
+                            if (cid1 == null || cid2 == null || cid1.Length == 0 || cid2.Length == 0)      //arkadi
+                                break;                  //arkadi
+
                             int cid1c = (int)cid1[0];
                             int cid2c = (int)cid2[0];
                             PdfObject ob2 = ps.ReadPRObject();
@@ -513,6 +531,12 @@ namespace iTextSharp.text.pdf {
             set {
             }
         }
+
+        public PdfDictionary FontDict       //arkadi
+        {
+            get { return font; }
+        }
+
         
         /** Gets the width from the font according to the Unicode char <CODE>c</CODE>
         * or the <CODE>name</CODE>. If the <CODE>name</CODE> is null it's a symbolic font.
@@ -655,8 +679,8 @@ namespace iTextSharp.text.pdf {
                     return new byte[0];
             }
         }
-        
-        internal PdfIndirectReference IndirectReference {
+
+        /*internal*/ public PdfIndirectReference IndirectReference {   //Arkadi chaned internal to public
             get {
                 return refFont;
             }
